@@ -1,38 +1,41 @@
-const express = require("express")
-const cors = require("cors")
-const formData = require("form-data")
-const Mailgun = require("mailgun.js")
 require("dotenv").config()
 
+const express = require("express")
+const formidable = require("express-formidable")
+const cors = require("cors")
+
+// MAILGUN CONFIGURATION //
+const api_key = process.env.MAILGUN_API_KEY
+const domain = process.env.MAILGUN_DOMAIN
+
+const mailgun = require("mailgun-js")({ apiKey: api_key, domain: domain })
+
 const app = express()
-app.use(express.json())
+app.use(formidable())
 app.use(cors())
 
-const mailgun = new Mailgun(formData)
-const client = mailgun.client({
-	username: "Manuel Fontenelle",
-	key: process.env.MAILGUN_API_KEY,
+app.get("/", (req, res) => {
+	res.send("Server is up!")
 })
 
 app.post("/form", (req, res) => {
-	const { firstname, lastname, email, subject, message } = req.body
+	const { firstname, lastname, email, subject, message } = req.fields
 
 	if (firstname && lastname && email && subject && message) {
-		const messageData = {
+		const data = {
 			from: `${firstname} ${lastname} <${email}>`,
 			to: "manuel.fontenelle@gmail.com",
-			subject: `Formulaire reçu`,
-			text: `Message envoyé par ${firstname} ${lastname} : ${message}`,
+			subject: subject,
+			text: message,
 		}
 
-		client.messages
-			.create(process.env.MAILGUN_DOMAIN, messageData)
-			.then((response) => {
-				res.status(response.status).json({ message: response.message })
-			})
-			.catch((err) => {
-				res.status(err.status).json({ message: err.message })
-			})
+		mailgun.messages().send(data, (error, body) => {
+			if (!error) {
+				console.log(body)
+				return res.status(200).json(body)
+			}
+			res.status(400).json(error)
+		})
 	} else {
 		res.status(400).json({ error: "Missing parameters" })
 	}
@@ -43,5 +46,5 @@ app.all("*", (req, res) => {
 })
 
 app.listen(process.env.PORT || 3000, () => {
-	console.log("Server started")
+	console.log("Server has just started")
 })
